@@ -3,18 +3,21 @@ setwd('~/bowman_lab/cyflow_space/ecuador_2018')
 #### general parameters ####
 
 output <- 'ecuador_2018_SG'
-plot.fcm <- function(name, fcm.dataframe, x, y){
-  hist2d(log10(fcm.dataframe[,x]),
-         log10(fcm.dataframe[,y]),
-         col = c('grey', colorRampPalette(c('white', 'lightgoldenrod1', 'darkgreen'))(100)),
-         nbins = 100,
-         bg = 'grey',
-         ylab = paste0('log10(', y, ')'),
-         xlab = paste0('log10(', x, ')'),
-         main = name,
-         cex.main = 0.8)
-  
-  box()
+plot.fcm <- function(name, fcm.dataframe, beads, x, y){
+  fcm.hex <- hexbin(log10(fcm.dataframe[,x]), log10(fcm.dataframe[,y]), 100)
+  plot(fcm.hex@xcm,
+       fcm.hex@ycm,
+       col = BTC(100)[as.numeric(cut(fcm.hex@count, 100))],
+       ylab = paste0('log10(', y, ')'),
+       xlab = paste0('log10(', x, ')'),
+       main = name,
+       pch = 19,
+       cex = 0.4)
+  rect(c(min(log10(beads[,x])), min(log10(beads[,x]))),
+       c(min(log10(beads[,y])), min(log10(beads[,y]))),
+       c(max(log10(beads[,x])), max(log10(beads[,x]))),
+       c(max(log10(beads[,y])), max(log10(beads[,y]))))
+  #  return(fcm.hex)
 }
 
 #### QC parameters ####
@@ -48,26 +51,56 @@ for(f.name in f.list){
   
   fcm <- read.FCS(f.name)
   fcm <- as.data.frame((exprs(fcm)))
-  fcm$FL5 <- NULL # FL5 channel does not contain biologically useful information
   
   fcm[fcm == 0] <- NA
   fcm <- na.omit(fcm)
   
-  plot.fcm(f.name, fcm, 'SSC', 'FL1')
-  plot.fcm(f.name, fcm, 'SSC', 'FSC')
-
+  ## Identify beads.  If you don't know where the beads are start with an empty beads dataframe and
+  ## make some plots (SSC, FL5) to identify.
+  
+  fcm.beads <- data.frame()
+  fcm.beads <- fcm[which(log10(fcm$SSC) > 3.5 &
+                           log10(fcm$FL5) > 2 &
+                           log10(fcm$FSC) > 2.5 &
+                           log10(fcm$FL6) > 2.5 &
+                           log10(fcm$FL3) > 2),]
+  
+  ## Make plots of all events.
+  
+  plot.fcm(f.name, fcm, fcm.beads, 'SSC', 'FSC')
+  plot.fcm(f.name, fcm, fcm.beads, 'SSC', 'FL1')
+  plot.fcm(f.name, fcm, fcm.beads, 'SSC', 'FL2')
+  plot.fcm(f.name, fcm, fcm.beads, 'SSC', 'FL3')
+  plot.fcm(f.name, fcm, fcm.beads, 'SSC', 'FL4')
+  plot.fcm(f.name, fcm, fcm.beads, 'SSC', 'FL5')
+  plot.fcm(f.name, fcm, fcm.beads, 'SSC', 'FL6')
+  
+  plot.fcm(f.name, fcm, fcm.beads, 'FL3', 'FL6')
+  
+  ## Remove events that are below limits (thresholds).
+  
   fcm <- fcm[fcm$FSC > FSC.limit,]
   fcm <- fcm[fcm$SSC > SSC.limit,]
-  fcm <- fcm[fcm$FL1 > FL1.limit,]
-
-  plot.fcm(paste(f.name, 'QC'), fcm, 'SSC', 'FL1')
-
+  fcm <- fcm[fcm$FL6 > FL6.limit,]
+  
+  ## Make plots of only those events remaining.
+  
+  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'SSC', 'FSC')
+  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'SSC', 'FL1')
+  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'SSC', 'FL2')
+  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'SSC', 'FL3')
+  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'SSC', 'FL4')
+  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'SSC', 'FL5')
+  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'SSC', 'FL6')
+  
+  plot.fcm(f.name, fcm, fcm.beads, 'FL3', 'FL6')
+  
   ## blanks and other very clean samples may not have enough points to donate
   ## to training dataset
   
   try({fcm.sample <- fcm[sample(1:length(fcm[,1]), sample.size),]}, silent = T)
   
-  training.events<- rbind(training.events, fcm.sample)
+  training.events<- rbind(training.events, fcm.sample[,colnames(training.events)])
   
   write.csv(fcm, sub('FCS', 'qc.csv', f.name), quote = F)
 }
