@@ -163,9 +163,6 @@ dev.off()
 ## use kmeans and determine best number of clusters
 ## http://www.shanelynn.ie/self-organising-maps-for-customer-segmentation-using-r/
 
-## if you want to work with previous models, load
-#load('ecuador_2018.af.som.Rdata')
-
 som.events <- som.model$codes[[1]]
 
 wss <- rep(NA, 30)
@@ -185,10 +182,14 @@ library(vegan)
 library(pmclust)
 
 ## K-mean clustering currently providing much more sensible clusters
+## than hierarchical clustering.  
 
 k <- 5
-#som.cluster.sg <- kmeans(som.events.sg, centers = k.sg)$cluster
 som.cluster <- pmclust(som.events, K = k)$class
+
+## If you want to use hierarchical clustering here's the code for
+## that.
+
 #som.dist <- vegdist(som.events)
 #som.cluster <- cutree(hclust(som.dist), k = k)
 
@@ -218,11 +219,11 @@ for(param in colnames(som.model$data[[1]])){
 
 dev.off()
 
-### save the models ###
+## save the model ##
 
 save(list = c('som.model', 'som.cluster', 'k'), file = paste0(output, '.som.Rdata'))
 
-### som property plots ###
+#### som property plots ####
 
 som.property.plot <- function(som.model, som.cluster, property, title){
   plot(som.model, type = 'property', property = property, main = title)
