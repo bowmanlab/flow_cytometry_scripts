@@ -4,7 +4,7 @@ setwd('~/sccoos_fcm')
 
 f.list <- list.files(path = '.', pattern = '_SG.qc.csv', ignore.case = T)
 output <- 'test.sg'
-input <- 'test.som.Rdata'
+input <- 'test_SG.som.Rdata'
 label <- 'sg'
 paramx <- 'FSC' # SSC best indicator for size, pg. 422 "In Living Color"?
 paramy <- 'FL1'
@@ -22,7 +22,7 @@ colnames(cluster.tally) <- 1:k
 row.names(cluster.tally) <- f.list
 flow.col <- oce.colorsFreesurface(k)
 
-## variables for testing only
+## Set variables for testing only.
 
 paramx <- 'FSC'
 paramy <- 'FL1'
@@ -32,7 +32,8 @@ som.model <- som.model
 cluster.tally.df <- cluster.tally
 cluster.vector <- som.cluster
 
-## end
+## Classify events from all samples, making a single compiled pdf
+## showing size and layout of clusters for each sample.
 
 classify.fcm <- function(sample, som.model, cluster.vector, paramx, paramy, label, flow.col, k){
   
@@ -60,16 +61,6 @@ classify.fcm <- function(sample, som.model, cluster.vector, paramx, paramy, labe
   for(cluster in 1:k){
     r = which(sample.df[paste0('cluster.', label)] == cluster)
     out[cluster] <- length(r)
-    
-    ## Not doing individual points because no pdf reader
-    ## can render it reasonably.
-    
-    # points(sample.mat[r, paramy] ~ sample.mat[r, paramx],
-    #        pch = 19,
-    #        cex = 0.3,
-    #        col = flow.col[cluster])
-    
-    ## Instead we make nice ellipses center on mean, with axis representing SD.
 
     temp.sd.x <- sd(sample.mat[r, paramx])
     temp.sd.y <- sd(sample.mat[r, paramy])
@@ -83,6 +74,11 @@ classify.fcm <- function(sample, som.model, cluster.vector, paramx, paramy, labe
     
   }
   
+  legend('topleft',
+         legend = paste('Cluster', 1:k),
+         pch = 1,
+         col = flow.col)
+  
   write.csv(sample.df, sample, quote = F)
   return(out)
 }
@@ -95,5 +91,41 @@ for(sample in f.list){
 
 dev.off()
 
-## Keep commented unless you want to reassign clusters
 write.csv(cluster.tally, paste0(output, '.cluster.tally.csv'), quote = F)
+
+## Define a function to make a detailed plot of all events,
+## color-coded by cluster, for a given sample.
+
+event.plot <- function(sample, paramx, paramy, k, label, flow.col){
+  
+  sample.df <- read.csv(sample, row.names = 1, header = T)
+  
+  plot(sample.df[,paramy] ~ sample.df[,paramx],
+       type = 'n',
+       main = sample,
+       xlab = paramx,
+       ylab = paramy,
+       log = 'xy')
+  
+  for(cluster in 1:k){
+    r = which(sample.df[paste0('cluster.', label)] == cluster)
+    out[cluster] <- length(r)
+    
+    points(sample.df[r, paramy] ~ sample.df[r, paramx],
+           pch = 19,
+           cex = 0.3,
+           col = flow.col[cluster])
+  }
+  
+  legend('topleft',
+         legend = paste('Cluster', 1:k),
+         pch = 19,
+         col = flow.col)
+}
+
+for(sample in f.list){
+  pdf(paste0(sample, '.pdf'))
+  event.plot(sample, 'FSC', 'FL1', k, label, flow.col)
+  dev.off()
+}
+  
