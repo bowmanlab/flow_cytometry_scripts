@@ -1,36 +1,36 @@
-setwd('~/bowman_lab/cyflow_space/ecuador_2018')
+setwd('~/sccoos_fcm')
 
 #### parameters ####
 
 f.list <- list.files(path = '.', pattern = '_SG.qc.csv', ignore.case = T)
-output <- 'ecuador_2018.sg'
-input <- 'ecuador_2018_SG.som.Rdata'
+output <- 'test.sg'
+input <- 'test.som.Rdata'
 label <- 'sg'
-paramx <- 'SSC' #SSC best indicator for size, pg. 422 "In Living Color"
+paramx <- 'FSC' # SSC best indicator for size, pg. 422 "In Living Color"?
 paramy <- 'FL1'
 
-### classify ###
+#### classify ####
 
 library(kohonen)
 library(oce)
+library(plotrix)
 
 load(input)
-k <- max(som.cluster)
 
 cluster.tally <- matrix(nrow = length(f.list), ncol = k)
 colnames(cluster.tally) <- 1:k
 row.names(cluster.tally) <- f.list
 flow.col <- oce.colorsFreesurface(k)
 
-## variables for testing 
+## variables for testing only
 
-# paramx <- 'SSC'
-# paramy <- 'FL1'
-# label <- 'sg'
-# sample <- f.list[1]
-# som.model <- som.model
-# cluster.tally.df <- cluster.tally
-# cluster.vector <- som.cluster
+paramx <- 'FSC'
+paramy <- 'FL1'
+label <- 'sg'
+sample <- f.list[1]
+som.model <- som.model
+cluster.tally.df <- cluster.tally
+cluster.vector <- som.cluster
 
 ## end
 
@@ -60,10 +60,27 @@ classify.fcm <- function(sample, som.model, cluster.vector, paramx, paramy, labe
   for(cluster in 1:k){
     r = which(sample.df[paste0('cluster.', label)] == cluster)
     out[cluster] <- length(r)
-    points(sample.mat[r, paramy] ~ sample.mat[r, paramx],
-           pch = 19,
-           cex = 0.3,
-           col = flow.col[cluster])
+    
+    ## Not doing individual points because no pdf reader
+    ## can render it reasonably.
+    
+    # points(sample.mat[r, paramy] ~ sample.mat[r, paramx],
+    #        pch = 19,
+    #        cex = 0.3,
+    #        col = flow.col[cluster])
+    
+    ## Instead we make nice ellipses center on mean, with axis representing SD.
+
+    temp.sd.x <- sd(sample.mat[r, paramx])
+    temp.sd.y <- sd(sample.mat[r, paramy])
+    
+    temp.mean.x <- mean(sample.mat[r, paramx])
+    temp.mean.y <- mean(sample.mat[r, paramy])
+    
+    draw.ellipse(temp.mean.x, temp.mean.y, a = temp.sd.x, b = temp.sd.y, border = flow.col[cluster])
+    
+    text(temp.mean.x, temp.mean.y, length(r))
+    
   }
   
   write.csv(sample.df, sample, quote = F)
