@@ -1,8 +1,16 @@
-setwd('~/bowman_lab/bowman_lab_github/flow_cytometry_scripts')
+setwd('~/sccoos_fcm')
 
 #### general parameters ####
 
-output <- 'testing' # This variable will be used for naming your output files
+output <- 'test_AF'                      # identifier for output files
+data.path <- 'test/'                     # make sure this ends with "/"
+f.list <- list.files(path = data.path,
+                     pattern = '*AF.*fcs',
+                     ignore.case = T)      # list of fcs files to analyze
+
+## Define a general plotting function for fcm data,
+## takes as input plot title, dataframe, dataframe of bead events
+## (can be NULL if not needed), x and y parameters.
 
 plot.fcm <- function(name, fcm.dataframe, beads, x, y){
   fcm.hex <- hexbin(log10(fcm.dataframe[,x]), log10(fcm.dataframe[,y]), 100)
@@ -14,39 +22,53 @@ plot.fcm <- function(name, fcm.dataframe, beads, x, y){
        main = name,
        pch = 19,
        cex = 0.4)
+  try({
   rect(c(min(log10(beads[,x])), min(log10(beads[,x]))),
        c(min(log10(beads[,y])), min(log10(beads[,y]))),
        c(max(log10(beads[,x])), max(log10(beads[,x]))),
        c(max(log10(beads[,y])), max(log10(beads[,y]))))
-  #  return(fcm.hex)
+  }, silent = T)
+
 }
 
 #### QC parameters ####
 
-f.list <- list.files(path = './', pattern = '*AF.fcs', ignore.case = T)
-FSC.limit <- 5
-SSC.limit <- 1
-FL6.limit <- 1
+## Lower limits for the key parameters that will be used for
+## QC.
+
+FSC.llimit <- 2
+SSC.llimit <- 1
+FL3.llimit <- 2
+FL6.llimit <- 2
+
+## Lower limits for the key parameters used to
+## define beads.
+
+SSC.beads.llimit <- 3.5
+FSC.beads.llimit <- 2
+FL5.beads.llimit <- 2.5
 
 #### aggregation and QC ####
 
-## The training.events dataframe holds a random sample
-## of each fcs file for training the neural network
+library(hexbin)
+library('flowCore')
 
 training.events <- data.frame(FSC = numeric(),
-                                 SSC = numeric(),
-                                 FL2 = numeric(),
-                                 FL3 = numeric(),
-                                 FL4 = numeric(),
-                                 FL6 = numeric())
+                              SSC = numeric(),
+                              FL1 = numeric(),
+                              FL2 = numeric(),
+                              FL3 = numeric(),
+                              FL4 = numeric(),
+                              FL5 = numeric(),
+                              FL6 = numeric()) # a dataframe to hold a selection of data for training the model
 
-library('flowCore')
-library('hexbin')
+sample.size <- 200 # size to sample from each for training data
+
+## Iterate across all FCS files, performing QC, making plots,
+## and taking a random selection of QC'd data for training.
 
 #f.name <- f.list[1]
 #grep('blank', f.list)
-
-sample.size <- 1000 # size to sample from each for training data
 
 pdf(paste0(output, '_fcm_plots.pdf'),
     width = 5,
@@ -55,7 +77,7 @@ pdf(paste0(output, '_fcm_plots.pdf'),
 for(f.name in f.list){
   print(f.name)
   
-  fcm <- read.FCS(f.name)
+  fcm <- read.FCS(paste0(data.path, f.name))
   fcm <- as.data.frame((exprs(fcm)))
   
   fcm[fcm == 0] <- NA
@@ -65,37 +87,33 @@ for(f.name in f.list){
   ## make some plots (SSC, FL5) to identify.
   
   fcm.beads <- data.frame()
-  fcm.beads <- fcm[which(log10(fcm$SSC) > 3.5 &
-                           log10(fcm$FL5) > 2 &
-                           log10(fcm$FSC) > 2.5 &
-                           log10(fcm$FL6) > 2.5 &
-                           log10(fcm$FL3) > 2),]
+  fcm.beads <- fcm[which(log10(fcm$SSC) > SSC.beads.llimit &
+                           log10(fcm$FL5) > FL5.beads.llimit &
+                           log10(fcm$FSC) > FSC.beads.llimit),]
   
   ## Make plots of all events.
   
-  plot.fcm(f.name, fcm, fcm.beads, 'SSC', 'FSC')
-  plot.fcm(f.name, fcm, fcm.beads, 'SSC', 'FL1')
-  plot.fcm(f.name, fcm, fcm.beads, 'SSC', 'FL2')
-  plot.fcm(f.name, fcm, fcm.beads, 'SSC', 'FL3')
-  plot.fcm(f.name, fcm, fcm.beads, 'SSC', 'FL4')
-  plot.fcm(f.name, fcm, fcm.beads, 'SSC', 'FL5')
-  plot.fcm(f.name, fcm, fcm.beads, 'SSC', 'FL6')
-  
+  plot.fcm(f.name, fcm, fcm.beads, 'FSC', 'SSC')
+  plot.fcm(f.name, fcm, fcm.beads, 'FSC', 'FL3')
+  plot.fcm(f.name, fcm, fcm.beads, 'FSC', 'FL6')
+  plot.fcm(f.name, fcm, fcm.beads, 'FL6', 'FL2')
+  plot.fcm(f.name, fcm, fcm.beads, 'FL6', 'FL3')
+  plot.fcm(f.name, fcm, fcm.beads, 'FL6', 'FL4')
+
   ## Remove events that are below limits (thresholds).
   
-  fcm <- fcm[fcm$FSC > FSC.limit,]
-  fcm <- fcm[fcm$SSC > SSC.limit,]
-  fcm <- fcm[fcm$FL6 > FL6.limit,]
+  fcm <- fcm[fcm$FSC > FSC.llimit,]
+  fcm <- fcm[fcm$SSC > SSC.llimit,]
+  fcm <- fcm[fcm$FL3 > FL3.llimit,]
+  fcm <- fcm[fcm$FL6 > FL6.llimit,]
   
   ## Make plots of only those events remaining.
   
-  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'SSC', 'FSC')
-  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'SSC', 'FL1')
-  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'SSC', 'FL2')
-  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'SSC', 'FL3')
-  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'SSC', 'FL4')
-  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'SSC', 'FL5')
-  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'SSC', 'FL6')
+  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'FSC', 'SSC')
+  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'FSC', 'FL3')
+  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'FSC', 'FL5')
+  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, 'FSC', 'FL6')
+
   
   ## blanks and other very clean samples may not have enough points to donate
   ## to training dataset
@@ -111,26 +129,25 @@ dev.off()
 
 write.csv(training.events, paste0(output, '.training_events.csv'), quote = F)
 
-#### training ####
+#### model training and selection ####
 
 library(kohonen)
 library(oce)
-library(gplots)
+library(hexbin)
+
+## Define a function to train a SOM for select parameters
+## from training data selected randomly during QC.
 
 train.fcm <- function(event.file, params){
 
   events <- read.csv(event.file, stringsAsFactors = F)
-  
-  train.beads <- data.frame()
-  train.beads <- events[which(log10(events$SSC) > 3.5 &
-                                log10(events$FSC) > 2.5 &
-                                log10(events$FL6) > 2.5 &
-                                log10(events$FL3) > 2),]
 
-  plot.fcm('training', events, train.beads, 'SSC', 'FSC')
-  plot.fcm('training', events, train.beads, 'SSC', 'FL6')
-  plot.fcm('training', events, train.beads, 'FL2', 'FL6')
-  plot.fcm('training', events, train.beads, 'FL4', 'FL6')
+  plot.fcm('training', events, NULL, 'FSC', 'SSC')
+  plot.fcm('training', events, NULL, 'FSC', 'FL6')
+  plot.fcm('training', events, NULL, 'FSC', 'FL5')
+  plot.fcm('training', events, NULL, 'FL6', 'FL2')
+  plot.fcm('training', events, NULL, 'FL6', 'FL3')
+  plot.fcm('training', events, NULL, 'FL6', 'FL4')
 
   sample.mat <- as.matrix(events[,params])
   colnames(sample.mat) <- params
@@ -139,7 +156,7 @@ train.fcm <- function(event.file, params){
 
   grid.size <- ceiling(dim(events)[1] ^ (1/2.5))
 
-  som.grid <- somgrid(xdim = grid.size, ydim = grid.size, topo="hexagonal")
+  som.grid <- somgrid(xdim = grid.size, ydim = grid.size, topo="hexagonal", toroidal = T)
 
   som.model <- som(sample.mat, 
                    grid = som.grid, 
@@ -149,10 +166,12 @@ train.fcm <- function(event.file, params){
   return(som.model)
 }
 
-event.file <- paste0(output, '.training_events.csv')
-params <- c('SSC', 'FSC', 'FL2', 'FL3', 'FL4', 'FL6')
+## Execute the SOM function for select parameters.
 
-pdf(paste0(output, '.som_mode_training_plots.pdf'),
+event.file <- paste0(output, '.training_events.csv')
+params <- c('FSC', 'SSC', 'FL2', 'FL3', 'FL4', 'FL5', 'FL6')
+
+pdf(paste0(output, '.som_model_training_plots.pdf'),
     width = 5,
     height = 5)
 
@@ -160,8 +179,16 @@ som.model <- train.fcm(event.file, params)
 
 dev.off()
 
-## use kmeans and determine best number of clusters
-## http://www.shanelynn.ie/self-organising-maps-for-customer-segmentation-using-r/
+## Use kmeans and determine best number of clusters, following
+## http://www.shanelynn.ie/self-organising-maps-for-customer-segmentation-using-r/.
+## If you're really sure about the number of clusters you expect, skip this part and
+## define as k.
+
+## If you've saved a model earlier, and want to work on the clustering load the old model.
+
+#load('sccoos_SG.som.Rdata')
+
+## Guestimate the number of clusters based on within clusters sum of squares using k-means.
 
 som.events <- som.model$codes[[1]]
 
@@ -176,85 +203,141 @@ plot(wss,
      ylab = 'Within-clusters sum of squares',
      xlab = 'K')
 
-## pick the elbow
+## Pick the elbow, this is the starting point for number of clusters.
+
+k <- 5
+
+## Now you need to manually evaluate some different clustering techniques,
+## including k-means, model based, and hierarchical. In practice
+## K-mean clustering has produced the most sensible clusters.
+
+## Now use the classification model to identify populations in the
+## training data.  You will want to evaluate a range of options for k
+## (based on estimate provded by SoS analysis), and multiple clustering
+## algorithms until the result "looks right".
+
+## In practice kmeans clustering has consistently produced the most coherent
+## clusters, however, you need to evaluate this for your own data!
 
 library(vegan)
 library(pmclust)
-
-## K-mean clustering currently providing much more sensible clusters
-## than hierarchical clustering.  
-
-k <- 5
-som.cluster <- pmclust(som.events, K = k)$class
-
-## If you want to use hierarchical clustering here's the code for
-## that.
-
-#som.dist <- vegdist(som.events)
-#som.cluster <- cutree(hclust(som.dist), k = k)
-
-### populations in the training data ###
-
 library(oce)
 
-flow.col <- oce.colorsFreesurface(k)
+## Define a function to make a basic scatterplot, with events color-coded
+## by cluster.
 
-pdf(paste0(output, '.param_plots.pdf'), width = 5, height = 5)
+plot.clusters <- function(alg, param, som.model, som.cluster, flow.col, j){
 
-for(param in colnames(som.model$data[[1]])){
-  
   plot(som.model$data[[1]][,param], som.model$data[[1]][,'FL6'],
        type = 'n',
        xlab = param,
-       ylab = 'FL6')
+       ylab = 'FL6',
+       main = paste0(alg, ', ', 'k = ', j))
   
-  for(p in 1:k){
+  for(p in 1:j){
     i <- which(som.cluster[som.model$unit.classif] == p)
     points(som.model$data[[1]][i,param], som.model$data[[1]][i,'FL6'],
            col = flow.col[p],
            pch = 19,
            cex = 0.4)
   }
+  
+  legend('topleft',
+         legend = paste('Cluster', 1:j),
+         pch = 19,
+         col = flow.col)
 }
 
-dev.off()
-
-## save the model ##
-
-save(list = c('som.model', 'som.cluster', 'k'), file = paste0(output, '.som.Rdata'))
-
-#### som property plots ####
+## Define a function to make SOM property plots.
 
 som.property.plot <- function(som.model, som.cluster, property, title){
   plot(som.model, type = 'property', property = property, main = title)
   add.cluster.boundaries(som.model, som.cluster, lwd = 2)
 }
 
-pdf(paste0(output, '.properties.pdf'),
-    width = 6,
-    height = 5)
+## Generate a bunch of plots to guide selection of appropriate clustering
+## algorithm.
 
-plot(som.model, type = 'counts')
-add.cluster.boundaries(som.model, som.cluster)
+pdf(paste0(output, '.cluster_eval.pdf'), width = 5, height = 5)
 
-som.property.plot(som.model, som.cluster, som.events[,1], 'log10(FSC)')
-som.property.plot(som.model, som.cluster, som.events[,2], 'log10(SSC)')
-som.property.plot(som.model, som.cluster, som.events[,3], 'log10(FL2)')
-som.property.plot(som.model, som.cluster, som.events[,4], 'log10(FL3)')
-som.property.plot(som.model, som.cluster, som.events[,4], 'log10(FL4)')
-som.property.plot(som.model, som.cluster, som.events[,4], 'log10(FL6)')
+for(j in (k-2):(k+2)){
 
-plot(som.model,
-     type = "mapping",
-     property = som.cluster,
-     main = 'Cluster locations',
-     #main = NULL,
-     bgcol = flow.col[som.cluster],
-     col = NA)
+  som.cluster.pm <- pmclust(som.events, K = j, algorithm = 'apecma')$class # model based
+  som.cluster.k <- kmeans(som.events, centers = j, iter.max = 100, nstart = 10)$cluster # k-means
+  som.dist <- vegdist(som.events) # hierarchical, step 1
+  som.cluster.h <- cutree(hclust(som.dist), k = j) # hierarchical, step 2
 
+  flow.col <- oce.colorsFreesurface(j)
+  
+  ## Plots for pm.
+  
+  for(param in params){
+    plot.clusters('pmclust', param, som.model, som.cluster.pm, flow.col, j)
+  }
+  
+  som.property.plot(som.model, som.cluster.pm, som.events[,'FSC'], paste0('log10(FSC),', 'pmclust, k =', j))
+  som.property.plot(som.model, som.cluster.pm, som.events[,'FL6'], paste0('log10(FL6),', 'pmclust, k =', j))
+  
+  plot(som.model,
+       type = "mapping",
+       property = som.cluster.pm,
+       main = paste0('Cluster locations,', 'pmclust, k =', j),
+       bgcol = flow.col[som.cluster.pm],
+       col = NA)
+  
+  ## Plots for k-means.
+  
+  for(param in params){
+    plot.clusters('kmeans', param, som.model, som.cluster.k, flow.col, j)
+  }
+  
+  som.property.plot(som.model, som.cluster.k, som.events[,'FSC'], paste0('log10(FSC),', 'kmeans, k =', j))
+  som.property.plot(som.model, som.cluster.k, som.events[,'FL6'], paste0('log10(FL6),', 'kmeans, k =', j))
+  
+  plot(som.model,
+       type = "mapping",
+       property = som.cluster.k,
+       main = paste0('Cluster locations,', 'kmeans, k =', j),
+       bgcol = flow.col[som.cluster.k],
+       col = NA)
+  
+  ## Plots for hierarchical.
+  
+  for(param in params){
+    plot.clusters('hierarchical', param, som.model, som.cluster.h, flow.col, j)
+  }
+  
+  som.property.plot(som.model, som.cluster.h, som.events[,'FSC'], paste0('log10(FSC),', 'hclust, k =', j))
+  som.property.plot(som.model, som.cluster.h, som.events[,'FL6'], paste0('log10(FL6),', 'hclust, k =', j))
+  
+  plot(som.model,
+       type = "mapping",
+       property = som.cluster.h,
+       main = paste0('Cluster locations,', 'hclust, k =', j),
+       bgcol = flow.col[som.cluster.h],
+       col = NA)
+}
+  
 dev.off()
 
-### pca on nodes ###
+#### describe selected model ####
+
+## Select the clustering algorithm that you like best and final number of 
+## clusters, and save the model.
+
+k <- 6
+som.cluster <- som.cluster.k
+cluster.method <- 'kmeans, with k = 6' # any notes on cluster method, to save with final model
+save(list = c('som.model', 'som.cluster', 'k', 'cluster.method'), file = paste0(output, '.som.Rdata'))
+
+## Refine cluster plots, if needed.
+
+flow.col <- oce.colorsFreesurface(k)
+
+plot.clusters('kmeans', 'FSC', som.model, som.cluster, flow.col, k)
+plot.clusters('kmeans', 'SSC', som.model, som.cluster, flow.col, k)
+
+## pca on nodes ##
 
 node.pca <- prcomp(som.model$codes[[1]])
 
