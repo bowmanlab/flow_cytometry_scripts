@@ -2,8 +2,8 @@ setwd('~/sccoos_fcm')
 
 #### general parameters ####
 
-output <- 'test'                      # identifier for output files
-data.path <- './'                     # make sure this ends with "/"
+output <- 'test_SG'                      # identifier for output files
+data.path <- 'test/'                     # make sure this ends with "/"
 f.list <- list.files(path = data.path,
                      pattern = '*SG.*fcs',
                      ignore.case = T)      # list of fcs files to analyze
@@ -57,7 +57,7 @@ training.events <- data.frame(FSC = numeric(),
                               FL1 = numeric(),
                               FL5 = numeric()) # a dataframe to hold a selection of data for training the model
 
-sample.size <- 1000 # size to sample from each for training data
+sample.size <- 200 # size to sample from each for training data
 
 ## Iterate across all FCS files, performing QC, making plots,
 ## and taking a random selection of QC'd data for training.
@@ -248,6 +248,8 @@ som.property.plot <- function(som.model, som.cluster, property, title){
 ## Generate a bunch of plots to guide selection of appropriate clustering
 ## algorithm.
 
+cluster.tries <- list()
+
 pdf(paste0(output, '.cluster_eval.pdf'), width = 5, height = 5)
 
 for(j in (k-2):(k+2)){
@@ -256,6 +258,10 @@ for(j in (k-2):(k+2)){
   som.cluster.k <- kmeans(som.events, centers = j, iter.max = 100, nstart = 10)$cluster # k-means
   som.dist <- vegdist(som.events) # hierarchical, step 1
   som.cluster.h <- cutree(hclust(som.dist), k = j) # hierarchical, step 2
+  
+  cluster.tries[[paste0('som.cluster.pm.', j)]] <- som.cluster.pm
+  cluster.tries[[paste0('som.cluster.k.', j)]] <- som.cluster.k
+  cluster.tries[[paste0('som.cluster.h.', j)]] <- som.cluster.h
 
   flow.col <- oce.colorsFreesurface(j)
   
@@ -307,9 +313,9 @@ dev.off()
 ## clusters, and save the model.
 
 k <- 6
-som.cluster <- som.cluster.k
-cluster.method <- 'kmeans, with k = 6' # any notes on cluster method, to save with final model
-save(list = c('som.model', 'som.cluster', 'k', 'cluster.method'), file = paste0(output, '.som.Rdata'))
+som.cluster <- cluster.tries[[paste0(cluster.method, '.', k)]]
+cluster.notes <- paste(cluster.method, 'k=', k)
+save(list = c('som.model', 'som.cluster', 'k', 'cluster.notes'), file = paste0(output, '.som.Rdata'))
 
 ## Refine cluster plots, if needed.
 
