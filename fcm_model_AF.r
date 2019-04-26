@@ -1,9 +1,9 @@
-setwd('~/sccoos_fcm')
+setwd("~/bowman_lab/mosaic/utqiagvik/fcm")
 
 #### general parameters ####
 
 output <- 'test_AF'                      # identifier for output files
-data.path <- 'test/'                     # make sure this ends with "/"
+data.path <- './'                     # make sure this ends with "/"
 f.list <- list.files(path = data.path,
                      pattern = '*AF.*fcs',
                      ignore.case = T)      # list of fcs files to analyze
@@ -34,19 +34,19 @@ plot.fcm <- function(name, fcm.dataframe, beads, x, y){
 #### QC parameters ####
 
 ## Lower limits for the key parameters that will be used for
-## QC.
+## QC (assumes log10 scale).
 
-FSC.llimit <- 2
-SSC.llimit <- 1
-FL3.llimit <- 2
-FL6.llimit <- 2
+FSC.llimit <- -0.9
+SSC.llimit <- -0.7
+FL3.llimit <- 0
+FL6.llimit <- 0
 
 ## Lower limits for the key parameters used to
-## define beads.
+## define beads (assumes log10 scale).
 
-SSC.beads.llimit <- 3.5
+SSC.beads.llimit <- 2
 FSC.beads.llimit <- 2
-FL5.beads.llimit <- 2.5
+FL5.beads.llimit <- 1.4
 
 #### aggregation and QC ####
 
@@ -102,10 +102,10 @@ for(f.name in f.list){
 
   ## Remove events that are below limits (thresholds).
   
-  fcm <- fcm[fcm$FSC > FSC.llimit,]
-  fcm <- fcm[fcm$SSC > SSC.llimit,]
-  fcm <- fcm[fcm$FL3 > FL3.llimit,]
-  fcm <- fcm[fcm$FL6 > FL6.llimit,]
+  fcm <- fcm[log10(fcm$FSC) > FSC.llimit,]
+  fcm <- fcm[log10(fcm$SSC) > SSC.llimit,]
+  fcm <- fcm[log10(fcm$FL3) > FL3.llimit,]
+  fcm <- fcm[log10(fcm$FL6) > FL6.llimit,]
   
   ## Make plots of only those events remaining.
   
@@ -186,7 +186,7 @@ dev.off()
 
 ## If you've saved a model earlier, and want to work on the clustering load the old model.
 
-#load('sccoos_SG.som.Rdata')
+#load('test_AF.som.Rdata')
 
 ## Guestimate the number of clusters based on within clusters sum of squares using k-means.
 
@@ -258,6 +258,8 @@ som.property.plot <- function(som.model, som.cluster, property, title){
 ## Generate a bunch of plots to guide selection of appropriate clustering
 ## algorithm.
 
+cluster.tries <- list()
+
 pdf(paste0(output, '.cluster_eval.pdf'), width = 5, height = 5)
 
 for(j in (k-2):(k+2)){
@@ -266,6 +268,10 @@ for(j in (k-2):(k+2)){
   som.cluster.k <- kmeans(som.events, centers = j, iter.max = 100, nstart = 10)$cluster # k-means
   som.dist <- vegdist(som.events) # hierarchical, step 1
   som.cluster.h <- cutree(hclust(som.dist), k = j) # hierarchical, step 2
+  
+  cluster.tries[[paste0('som.cluster.pm.', j)]] <- som.cluster.pm
+  cluster.tries[[paste0('som.cluster.k.', j)]] <- som.cluster.k
+  cluster.tries[[paste0('som.cluster.h.', j)]] <- som.cluster.h
 
   flow.col <- oce.colorsFreesurface(j)
   
@@ -326,9 +332,10 @@ dev.off()
 ## clusters, and save the model.
 
 k <- 6
-som.cluster <- som.cluster.k
-cluster.method <- 'kmeans, with k = 6' # any notes on cluster method, to save with final model
-save(list = c('som.model', 'som.cluster', 'k', 'cluster.method'), file = paste0(output, '.som.Rdata'))
+cluster.method <- 'k'
+som.cluster <- cluster.tries[[paste('som.cluster', cluster.method, k, sep = '.')]]
+cluster.notes <- paste(cluster.method, 'k=', k)
+save(list = c('som.model', 'som.cluster', 'k', 'cluster.notes'), file = paste0(output, '.som.Rdata'))
 
 ## Refine cluster plots, if needed.
 

@@ -1,9 +1,9 @@
-setwd('~/sccoos_fcm')
+setwd("~/bowman_lab/mosaic/utqiagvik/fcm")
 
 #### general parameters ####
 
 output <- 'test_SG'                      # identifier for output files
-data.path <- 'test/'                     # make sure this ends with "/"
+data.path <- './'                     # make sure this ends with "/"
 f.list <- list.files(path = data.path,
                      pattern = '*SG.*fcs',
                      ignore.case = T)      # list of fcs files to analyze
@@ -34,18 +34,18 @@ plot.fcm <- function(name, fcm.dataframe, beads, x, y){
 #### QC parameters ####
 
 ## Lower limits for the key parameters that will be used for
-## QC.
+## QC (assumes log10 scale).
 
-FSC.llimit <- 2
-SSC.llimit <- 1
-FL1.llimit <- 2
+FSC.llimit <- -0.9
+SSC.llimit <- -0.7
+FL1.llimit <- 0
 
 ## Lower limits for the key parameters used to
-## define beads.
+## define beads (assumes log10 scale).
 
-SSC.beads.llimit <- 3.5
+SSC.beads.llimit <- 2
 FSC.beads.llimit <- 2
-FL5.beads.llimit <- 2.5
+FL5.beads.llimit <- 1.4
 
 #### aggregation and QC ####
 
@@ -62,7 +62,7 @@ sample.size <- 200 # size to sample from each for training data
 ## Iterate across all FCS files, performing QC, making plots,
 ## and taking a random selection of QC'd data for training.
 
-#f.name <- f.list[1]
+#f.name <- f.list[25]
 #grep('blank', f.list)
 
 pdf(paste0(output, '_fcm_plots.pdf'),
@@ -93,9 +93,9 @@ for(f.name in f.list){
 
   ## Remove events that are below limits (thresholds).
   
-  fcm <- fcm[fcm$FSC > FSC.llimit,]
-  fcm <- fcm[fcm$SSC > SSC.llimit,]
-  fcm <- fcm[fcm$FL1 > FL1.llimit,]
+  fcm <- fcm[log10(fcm$FSC) > FSC.llimit,]
+  fcm <- fcm[log10(fcm$SSC) > SSC.llimit,]
+  fcm <- fcm[log10(fcm$FL1) > FL1.llimit,]
   
   ## Make plots of only those events remaining.
   
@@ -109,9 +109,10 @@ for(f.name in f.list){
   ## blanks and other very clean samples may not have enough points to donate
   ## to training dataset
   
-  try({fcm.sample <- fcm[sample(1:length(fcm[,1]), sample.size),]}, silent = T)
-  
-  training.events<- rbind(training.events, fcm.sample[,colnames(training.events)])
+  try({
+    fcm.sample <- fcm[sample(1:length(fcm[,1]), sample.size),]
+    training.events<- rbind(training.events, fcm.sample[,colnames(training.events)])
+    }, silent = T)
   
   write.csv(fcm, sub('FCS', 'qc.csv', f.name), quote = F)
 }
@@ -312,8 +313,9 @@ dev.off()
 ## Select the clustering algorithm that you like best and final number of 
 ## clusters, and save the model.
 
-k <- 6
-som.cluster <- cluster.tries[[paste0(cluster.method, '.', k)]]
+k <- 4
+cluster.method <- 'k'
+som.cluster <- cluster.tries[[paste('som.cluster', cluster.method, k, sep = '.')]]
 cluster.notes <- paste(cluster.method, 'k=', k)
 save(list = c('som.model', 'som.cluster', 'k', 'cluster.notes'), file = paste0(output, '.som.Rdata'))
 
