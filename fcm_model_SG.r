@@ -1,4 +1,4 @@
-setwd("~/bowman_lab/mosaic/utqiagvik/fcm")
+setwd("~/bowman_lab/bowman_lab_github/flow_cytometry_scripts")
 
 #### general parameters ####
 
