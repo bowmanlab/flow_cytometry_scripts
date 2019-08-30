@@ -13,7 +13,8 @@ deduped.index <- which(duplicated(data) != T)
 unit.classif.dedup <- som.model$unit.classif[deduped.index]
 data.deduped <- data[deduped.index,]
 
-data.sne <- Rtsne(data.deduped, initial_dims = (dim(data.deduped)[2] - 1))
+data.sne <- Rtsne(data.deduped, initial_dims = (dim(data.deduped)[2] - 1),
+                  perplexity = 100)
 
 ## plot SNE output
 
