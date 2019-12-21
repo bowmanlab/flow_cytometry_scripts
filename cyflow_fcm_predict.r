@@ -1,13 +1,13 @@
-setwd("~/bowman_lab/OAST/basque_lakes")
+setwd("~/bowman_lab/mosaic/utqiagvik/fcm")
 
 #### parameters ####
 
-f.list <- list.files(path = '.', pattern = '.qc.csv', ignore.case = T)
-output <- 'test.sg'
-input <- 'basque_SG.som.Rdata'
-label <- 'sg'
-paramx <- 'SSC.HLog' # SSC best indicator for size, pg. 422 "In Living Color"?
-paramy <- 'GRN.B.HLog'
+f.list <- list.files(path = '.', pattern = '_AF.qc.csv', ignore.case = T)
+output <- 'test.af'
+input <- 'test_AF.som.Rdata'
+label <- 'af'
+paramx <- 'FSC' # SSC best indicator for size, pg. 422 "In Living Color"?
+paramy <- 'FL6'
 beads.added <- 0.5 * 10^3 # 50 ul of 10^5
 #bead.cluster <- 3 # cluster number for beads
 
@@ -26,17 +26,17 @@ flow.col <- oce.colorsFreesurface(k)
 
 ## Set variables for testing only.
 
-paramx <- 'SSC.HLog'
-paramy <- 'GRN.B.HLog'
+paramx <- 'FSC'
+paramy <- 'FL1'
 label <- 'sg'
 sample <- f.list[1]
-sample <- 'BLS1B.qc.csv'
+sample <- '19.04.10_Core04_0−10_SG.qc.csv'
 som.model <- som.model
 cluster.tally.df <- cluster.tally
 cluster.vector <- som.cluster
-SSC.beads.llimit <- 3.1
-FSC.beads.llimit <- 4
-FL5.beads.llimit <- 3.3
+SSC.beads.llimit <- 2
+FSC.beads.llimit <- 2
+FL5.beads.llimit <- 1.4
 
 ## Classify events from all samples, making a single compiled pdf
 ## showing size and layout of clusters for each sample.
@@ -64,11 +64,9 @@ classify.fcm <- function(sample,
   sample.predict <- predict(som.model, sample.mat)
   sample.df[paste0('cluster.', label)] <- cluster.vector[sample.predict$unit.classif]
   
-  sample.beads <- which(log10(sample.df$SSC.HLog) > SSC.beads.llimit &
-                           log10(sample.df$BLU.V.HLog) > FL5.beads.llimit &
-                           log10(sample.df$FSC.HLog) > FSC.beads.llimit)
-  
-  ## beads are assigned cluster 0
+  sample.beads <- which(log10(sample.df$SSC) > SSC.beads.llimit &
+                           log10(sample.df$FL5) > FL5.beads.llimit &
+                           log10(sample.df$FSC) > FSC.beads.llimit)
   
   sample.df[sample.beads, paste0('cluster.', label)] <- 0
   
@@ -122,17 +120,7 @@ classify.fcm <- function(sample,
 pdf(paste0(output, '.clusters.pdf'))
 
 for(sample in f.list){
-  cluster.tally[sample,] <- classify.fcm(sample,
-                                         som.model,
-                                         som.cluster,
-                                         paramx,
-                                         paramy,
-                                         label,
-                                         flow.col,
-                                         k,
-                                         "SSC.beads.llimit",
-                                         "FSC.beads.llimit",
-                                         "FL5.beads.llimit")
+  cluster.tally[sample,] <- classify.fcm(sample, som.model, som.cluster, paramx, paramy, label, flow.col, k, 2, 2, 1.4)
 }
 
 dev.off()
