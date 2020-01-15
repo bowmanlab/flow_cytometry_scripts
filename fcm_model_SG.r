@@ -1,18 +1,18 @@
-setwd("~/bowman_lab/OAST/basque_lakes")
+setwd("~/bowman_lab/bowman_lab_github/flow_cytometry_scripts")
 
 #### general parameters ####
 
-output <- 'basque_SG'                      # identifier for output files
+output <- 'test_SG'                      # identifier for output files
 data.path <- './'                     # make sure this ends with "/"
 f.list <- list.files(path = data.path,
                      pattern = '*fcs',
-                     ignore.case = T)      # list of fcs files to analyze
+                     ignore.case = F)      # list of fcs files to analyze
 
 ## Define a general plotting function for fcm data,
 ## takes as input plot title, dataframe, dataframe of bead events
 ## (can be NULL if not needed), x and y parameters.
 
-plot.fcm <- function(name, fcm.dataframe, beads=NA, x='SSC-HLog', y='GRN-B-HLog'){
+plot.fcm <- function(name, fcm.dataframe, beads=NA, x='SSC-HLin', y='GRN-B-HLin'){
   fcm.hex <- hexbin(log10(fcm.dataframe[,x]), log10(fcm.dataframe[,y]), 100)
   plot(fcm.hex@xcm,
        fcm.hex@ycm,
@@ -52,12 +52,12 @@ FL5.beads.llimit <- 3.3
 library(hexbin)
 library('flowCore')
 
-training.events <- data.frame(`FSC-HLog` = numeric(),
-                              `SSC-HLog` = numeric(),
-                              `GRN-B-HLog` = numeric(),
-                              `BLU-V-HLog` = numeric()) # a dataframe to hold a selection of data for training the model
+training.events <- data.frame(`FSC-HLin` = numeric(),
+                              `SSC-HLin` = numeric(),
+                              `GRN-B-HLin` = numeric(),
+                              `BLU-V-HLin` = numeric()) # a dataframe to hold a selection of data for training the model
 
-colnames(training.events) <- c("FSC-HLog", "SSC-HLog", "GRN-B-HLog", "BLU-V-HLog")
+colnames(training.events) <- c("FSC-HLin", "SSC-HLin", "GRN-B-HLin", "BLU-V-HLin")
 
 sample.size <- 1000 # size to sample from each for training data
 
@@ -71,51 +71,66 @@ pdf(paste0(output, '_fcm_plots.pdf'),
     width = 5,
     height = 5)
 
-for(f.name in f.list){
-  print(f.name)
+for(fcs in c(f.list)){
   
-  fcm <- read.FCS(paste0(data.path, f.name))
-  fcm <- as.data.frame((exprs(fcm)))
-  
-  fcm <- fcm[,grep('HLog', colnames(fcm))]
-  
-  fcm[fcm == 1] <- NA
-  fcm <- na.omit(fcm)
-  
-  ## Identify beads.  If you don't know where the beads are start with an empty beads dataframe and
-  ## make some plots (SSC, FL5) to identify.
-  
-  fcm.beads <- data.frame()
-  fcm.beads <- fcm[which(log10(fcm$`SSC-HLog`) > SSC.beads.llimit &
-                           log10(fcm$`BLU-V-HLog`) > FL5.beads.llimit &
-                           log10(fcm$`FSC-HLog`) > FSC.beads.llimit),]
-  
-  ## Make plots of all events.
-  
-  plot.fcm(f.name, fcm, fcm.beads, y = "FSC-HLog")
-  plot.fcm(f.name, fcm, fcm.beads)
+  analyze.next <- T
+  i <- 0
 
-  ## Remove events that are below limits (thresholds).
+  while(analyze.next == T){
+    i <- i + 1
+    
+    fcm <- read.FCS(paste0(data.path, fcs), emptyValue = F, dataset = i)
+    f.name <- fcm@description$`GTI$SAMPLEID`
+    print(f.name)
+    
+    ## If it's the last record in the file, stop loop after this iteration.
+    
+    if(as.integer(fcm@description$`$NEXTDATA`) == 0){
+      analyze.next <- F}
+    
+    ## Convert data to dataframe.
+    
+    fcm <- as.data.frame(fcm@exprs)
+    fcm <- fcm[,grep('HLin', colnames(fcm))]
+    fcm[fcm < 1] <- NA
+    fcm <- na.omit(fcm)
+    
+    ## Identify beads.  If you don't know where the beads are start with an empty beads dataframe and
+    ## make some plots (SSC, FL5) to identify.
+    
+    fcm.beads <- data.frame()
+    fcm.beads <- fcm[which(log10(fcm$`SSC-HLin`) > SSC.beads.llimit &
+                             log10(fcm$`BLU-V-HLin`) > FL5.beads.llimit &
+                             log10(fcm$`FSC-HLin`) > FSC.beads.llimit),]
+    
+    ## Make plots of all events.
+    
+    plot.fcm(f.name, fcm, fcm.beads, y = "FSC-HLin")
+    plot.fcm(f.name, fcm, fcm.beads)
   
-  fcm <- fcm[log10(fcm$`FSC-HLog`) > FSC.llimit,]
-  fcm <- fcm[log10(fcm$`SSC-HLog`) > SSC.llimit,]
-  fcm <- fcm[log10(fcm$`GRN-B-HLog`) > FL1.llimit,]
+    ## Remove events that are below limits (thresholds).
+    
+    fcm <- fcm[log10(fcm$`FSC-HLin`) > FSC.llimit,]
+    fcm <- fcm[log10(fcm$`SSC-HLin`) > SSC.llimit,]
+    fcm <- fcm[log10(fcm$`GRN-B-HLin`) > FL1.llimit,]
+    
+    ## Make plots of only those events remaining.
+    
+    plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, y = 'FSC-HLin')
+    plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, y = 'GRN-B-HLin')
+    plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, y = 'RED-V-HLin')
+    
+    ## blanks and other very clean samples may not have enough points to donate
+    ## to training dataset
+    
+    try({
+      fcm.sample <- fcm[sample(1:length(fcm[,1]), sample.size),]
+      training.events<- rbind(training.events, fcm.sample[,colnames(training.events)])
+      }, silent = T)
+    
+    write.csv(fcm, paste0(f.name, '.qc.csv'), quote = F)
+    }
   
-  ## Make plots of only those events remaining.
-  
-  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, y = 'FSC-HLog')
-  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, y = 'GRN-B-HLog')
-  plot.fcm(paste(f.name, 'QC'), fcm, fcm.beads, y = 'RED-V-HLog')
-  
-  ## blanks and other very clean samples may not have enough points to donate
-  ## to training dataset
-  
-  try({
-    fcm.sample <- fcm[sample(1:length(fcm[,1]), sample.size),]
-    training.events<- rbind(training.events, fcm.sample[,colnames(training.events)])
-    }, silent = T)
-  
-  write.csv(fcm, sub('FCS', 'qc.csv', f.name), quote = F)
 }
 
 dev.off()
@@ -137,9 +152,9 @@ train.fcm <- function(event.file, params){
 
   events <- read.csv(event.file, stringsAsFactors = F)
 
-  plot.fcm('training', events, NULL, x = 'SSC.HLog', y = 'FSC.HLog')
-  plot.fcm('training', events, NULL, x = 'SSC.HLog', y = 'GRN.B.HLog')
-  plot.fcm('training', events, NULL, x = 'SSC.HLog', y = 'BLU.V.HLog')
+  plot.fcm('training', events, NULL, x = 'SSC.HLin', y = 'FSC.HLin')
+  plot.fcm('training', events, NULL, x = 'SSC.HLin', y = 'GRN.B.HLin')
+  plot.fcm('training', events, NULL, x = 'SSC.HLin', y = 'BLU.V.HLin')
 
   sample.mat <- as.matrix(events[,params])
   colnames(sample.mat) <- params
@@ -161,7 +176,7 @@ train.fcm <- function(event.file, params){
 ## Execute the SOM function for select parameters.
 
 event.file <- paste0(output, '.training_events.csv')
-params <- c('FSC.HLog', 'SSC.HLog', 'GRN.B.HLog')
+params <- c('FSC.HLin', 'SSC.HLin', 'GRN.B.HLin')
 
 pdf(paste0(output, '.som_model_training_plots.pdf'),
     width = 5,
@@ -220,15 +235,15 @@ library(oce)
 
 plot.clusters <- function(alg, param, som.model, som.cluster, flow.col, j){
 
-  plot(som.model$data[[1]][,param], som.model$data[[1]][,'GRN.B.HLog'],
+  plot(som.model$data[[1]][,param], som.model$data[[1]][,'GRN.B.HLin'],
        type = 'n',
        xlab = param,
-       ylab = 'GRN.B.HLog',
+       ylab = 'GRN.B.HLin',
        main = paste(alg, ',', 'k =', j))
   
   for(p in 1:j){
     i <- which(som.cluster[som.model$unit.classif] == p)
-    points(som.model$data[[1]][i,param], som.model$data[[1]][i,'GRN.B.HLog'],
+    points(som.model$data[[1]][i,param], som.model$data[[1]][i,'GRN.B.HLin'],
            col = flow.col[p],
            pch = 19,
            cex = 0.4)
@@ -269,9 +284,9 @@ for(j in (k-2):(k+2)){
   
   ## Plots for pm.
   
-  plot.clusters('pmclust', 'SSC.HLog', som.model, som.cluster.pm, flow.col, j)
-  som.property.plot(som.model, som.cluster.pm, som.events[,1], paste0('log10(SSC.HLog),', 'pmclust, k =', j))
-  som.property.plot(som.model, som.cluster.pm, som.events[,3], paste0('log10(GRN.B.HLog),', 'pmclust, k =', j))
+  plot.clusters('pmclust', 'SSC.HLin', som.model, som.cluster.pm, flow.col, j)
+  som.property.plot(som.model, som.cluster.pm, som.events[,1], paste0('log10(SSC.HLin),', 'pmclust, k =', j))
+  som.property.plot(som.model, som.cluster.pm, som.events[,3], paste0('log10(GRN.B.HLin),', 'pmclust, k =', j))
   
   plot(som.model,
        type = "mapping",
@@ -282,9 +297,9 @@ for(j in (k-2):(k+2)){
   
   ## Plots for k-means.
   
-  plot.clusters('kmeans', 'SSC.HLog', som.model, som.cluster.k, flow.col, j)
-  som.property.plot(som.model, som.cluster.k, som.events[,1], paste0('log10(SSC.HLog),', 'kmeans, k =', j))
-  som.property.plot(som.model, som.cluster.k, som.events[,3], paste0('log10(GRN.B.HLog),', 'kmeans, k =', j))
+  plot.clusters('kmeans', 'SSC.HLin', som.model, som.cluster.k, flow.col, j)
+  som.property.plot(som.model, som.cluster.k, som.events[,1], paste0('log10(SSC.HLin),', 'kmeans, k =', j))
+  som.property.plot(som.model, som.cluster.k, som.events[,3], paste0('log10(GRN.B.HLin),', 'kmeans, k =', j))
   
   plot(som.model,
        type = "mapping",
@@ -295,9 +310,9 @@ for(j in (k-2):(k+2)){
   
   ## Plots for hierarchical.
   
-  plot.clusters('hierarchical', 'SSC.HLog', som.model, som.cluster.h, flow.col, j)
-  som.property.plot(som.model, som.cluster.h, som.events[,1], paste0('log10(SSC.HLog),', 'hclust, k =', j))
-  som.property.plot(som.model, som.cluster.h, som.events[,3], paste0('log10(GRN.B.HLog),', 'hclust, k =', j))
+  plot.clusters('hierarchical', 'SSC.HLin', som.model, som.cluster.h, flow.col, j)
+  som.property.plot(som.model, som.cluster.h, som.events[,1], paste0('log10(SSC.HLin),', 'hclust, k =', j))
+  som.property.plot(som.model, som.cluster.h, som.events[,3], paste0('log10(GRN.B.HLin),', 'hclust, k =', j))
   
   plot(som.model,
        type = "mapping",
@@ -315,7 +330,7 @@ dev.off()
 ## clusters, and save the model.
 
 k <- 4
-cluster.method <- 'k'
+cluster.method <- 'pmclust'
 som.cluster <- cluster.tries[[paste('som.cluster', cluster.method, k, sep = '.')]]
 cluster.notes <- paste(cluster.method, 'k=', k)
 save(list = c('som.model', 'som.cluster', 'k', 'cluster.notes'), file = paste0(output, '.som.Rdata'))
@@ -324,40 +339,5 @@ save(list = c('som.model', 'som.cluster', 'k', 'cluster.notes'), file = paste0(o
 
 flow.col <- oce.colorsFreesurface(k)
 
-plot.clusters('kmeans', 'FSC.HLog', som.model, som.cluster, flow.col, k)
-plot.clusters('kmeans', 'SSC.HLog', som.model, som.cluster, flow.col, k)
-
-## pca on nodes ##
-
-node.pca <- prcomp(som.model$codes[[1]])
-
-pdf(paste0(output, '.node_pca.pdf'),
-    width = 5,
-    height = 5)
-
-plot(node.pca$x[,1], node.pca$x[,2], type = 'n',
-     xlab = 'PC1',
-     ylab = 'PC2')
-
-for(p in 1:k){
-  points(node.pca$x[which(som.cluster == p),1], node.pca$x[which(som.cluster == p),2],
-         pch = 19,
-         col = flow.col[p],
-         cex = 0.6)
-}
-
-scaling.factor = 1
-
-arrows(0,
-       0,
-       node.pca$rotation[,1] * scaling.factor,
-       node.pca$rotation[,2] * scaling.factor,
-       lwd = 2)
-
-text(node.pca$rotation[,1] * scaling.factor,
-     node.pca$rotation[,2] * scaling.factor,
-     labels = rownames(node.pca$rotation),
-     adj = c(1,1),
-     font = 2)
-
-dev.off()
+plot.clusters('kmeans', 'FSC.HLin', som.model, som.cluster, flow.col, k)
+plot.clusters('kmeans', 'SSC.HLin', som.model, som.cluster, flow.col, k)
