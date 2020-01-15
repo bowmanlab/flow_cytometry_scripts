@@ -330,7 +330,7 @@ dev.off()
 ## clusters, and save the model.
 
 k <- 4
-cluster.method <- 'pmclust'
+cluster.method <- 'k' #either k, pm, or h
 som.cluster <- cluster.tries[[paste('som.cluster', cluster.method, k, sep = '.')]]
 cluster.notes <- paste(cluster.method, 'k=', k)
 save(list = c('som.model', 'som.cluster', 'k', 'cluster.notes'), file = paste0(output, '.som.Rdata'))

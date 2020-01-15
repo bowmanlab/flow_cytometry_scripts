@@ -1,15 +1,17 @@
-setwd("~/bowman_lab/OAST/basque_lakes")
+setwd("~/bowman_lab/bowman_lab_github/flow_cytometry_scripts")
 
 #### parameters ####
 
 f.list <- list.files(path = '.', pattern = '.qc.csv', ignore.case = T)
 output <- 'test.sg'
-input <- 'basque_SG.som.Rdata'
+input <- 'test_SG.som.Rdata'
 label <- 'sg'
-paramx <- 'SSC.HLog' # SSC best indicator for size, pg. 422 "In Living Color"?
-paramy <- 'GRN.B.HLog'
-beads.added <- 0.5 * 10^3 # 50 ul of 10^5
-#bead.cluster <- 3 # cluster number for beads
+paramx <- 'SSC.HLin' # SSC best indicator for size, pg. 422 "In Living Color"?
+paramy <- 'GRN.B.HLin'
+beads.added <- 0.5 * 10^4 # 50 ul of 10^5 per ml
+SSC.beads.llimit <- 3.1
+FSC.beads.llimit <- 4
+FL5.beads.llimit <- 3.3
 
 #### classify ####
 
@@ -26,17 +28,14 @@ flow.col <- oce.colorsFreesurface(k)
 
 ## Set variables for testing only.
 
-paramx <- 'SSC.HLog'
-paramy <- 'GRN.B.HLog'
+paramx <- 'SSC.HLin'
+paramy <- 'GRN.B.HLin'
 label <- 'sg'
 sample <- f.list[1]
-sample <- 'BLS1B.qc.csv'
+sample <- 'NC1.qc.csv'
 som.model <- som.model
 cluster.tally.df <- cluster.tally
 cluster.vector <- som.cluster
-SSC.beads.llimit <- 3.1
-FSC.beads.llimit <- 4
-FL5.beads.llimit <- 3.3
 
 ## Classify events from all samples, making a single compiled pdf
 ## showing size and layout of clusters for each sample.
@@ -64,9 +63,9 @@ classify.fcm <- function(sample,
   sample.predict <- predict(som.model, sample.mat)
   sample.df[paste0('cluster.', label)] <- cluster.vector[sample.predict$unit.classif]
   
-  sample.beads <- which(log10(sample.df$SSC.HLog) > SSC.beads.llimit &
-                           log10(sample.df$BLU.V.HLog) > FL5.beads.llimit &
-                           log10(sample.df$FSC.HLog) > FSC.beads.llimit)
+  sample.beads <- which(log10(sample.df$SSC.HLin) > SSC.beads.llimit &
+                           log10(sample.df$BLU.V.HLin) > FL5.beads.llimit &
+                           log10(sample.df$FSC.HLin) > FSC.beads.llimit)
   
   ## beads are assigned cluster 0
   
@@ -130,9 +129,9 @@ for(sample in f.list){
                                          label,
                                          flow.col,
                                          k,
-                                         "SSC.beads.llimit",
-                                         "FSC.beads.llimit",
-                                         "FL5.beads.llimit")
+                                         SSC.beads.llimit,
+                                         FSC.beads.llimit,
+                                         FL5.beads.llimit)
 }
 
 dev.off()
