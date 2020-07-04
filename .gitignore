@@ -1,7 +1,7 @@
 # Directory specific files
 *.csv
-*.Rdata
-*.pdf
+#*.Rdata
+#*.pdf
 
 # Windows image file caches
 Thumbs.db

@@ -1,14 +1,10 @@
 # flow_cytometry_scripts
 Base scripts for flow cytometry analysis.
 
-This repository has basic scripts for analyzing data from our Guava 11HT, generalizable to most flow cytometry instruments.  Some older scripts from our defunt CyFlow Space are also present.
+This repository has basic scripts for analyzing data from our Guava 11HT, generalizable to most flow cytometry instruments.  Some older scripts from our defunt CyFlow Space are also present in the old_cyflow directory.
 
-fcm_model_AF.r - Constructs a model to classify autofluorescent data.
+fcm_model.r - Constructs a model to classify FCM data from the Guava 11HT.
 
-fcm_model_SG.r - Constructs a model to classify sybergreen data.
+fcm_predict.r - Classifies data according to a model constructed by fcm_model.r.
 
-fcm_predict.r - Classifies data according to a model constructed by one of the other scripts.
-
-cyflow_fcm_model_AF.r
-cyflow_fcm_model_SG.r
-cyflow_fcm_predict.r
+Current models and associated figures can be found as .Rdata and .pdf files, respectively.
