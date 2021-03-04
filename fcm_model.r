@@ -8,6 +8,18 @@ data.path <- './'                     # make sure this ends with "/"
 f.list <- list.files(path = data.path,
                      pattern = '*fcs',
                      ignore.case = F)      # list of fcs files to analyze
+					 
+## what channels should be used?
+
+if(stain == 'AF'){
+  params <- c("FSC-HLin", "SSC-HLin", "BLU-V-HLin", "YEL-B-HLin", "RED-V-HLin", "RED-B-HLin")
+}
+
+if(stain == 'SG'){
+  params <- c("FSC-HLin", "SSC-HLin", "BLU-V-HLin", "GRN-B-HLin")
+}
+
+#### functions ####
 
 ## Define a general plotting function for fcm data,
 ## takes as input plot title, dataframe, dataframe of bead events
@@ -40,7 +52,7 @@ plot.fcm <- function(name, fcm.dataframe, beads=NA, x='FSC-HLin', y='RED-V-HLin'
 FSC.llimit <- -1
 SSC.llimit <- -1
 RED.V.HLin.llimit <- -1 # only for AF
-GRN.B.HLin.llimit <- 2 # only for SG
+GRN.B.HLin.llimit <- 1.4 # only for SG
 
 ## Lower limits for the key parameters used to
 ## define beads (assumes log10 scale).
@@ -122,7 +134,15 @@ for(fcs in c(f.list)){
       
       fcm <- as.data.frame(fcm@exprs)
       fcm <- fcm[,grep('HLin', colnames(fcm))]
-      fcm[fcm < 1] <- NA
+	  
+      ## Drop all events with a negative value in any channel.  Save these in case you need to look at.
+      
+      fcm.bad <- fcm[apply(fcm, 1, function(row) any(row < 0)),]
+      
+      for(param in params){
+        fcm[fcm[param] <= 0,param] <- NA
+      }
+      
       fcm <- na.omit(fcm)
       
       ## Identify beads.  If you don't know where the beads are start with an empty beads dataframe and
@@ -231,13 +251,7 @@ train.fcm <- function(event.file, params){
 
 event.file <- paste0(output, '.training_events.csv')
 
-if(stain == 'AF'){
-  params <- c("FSC.HLin", "SSC.HLin", "BLU.V.HLin", "YEL.B.HLin", "RED.V.HLin", "RED.B.HLin")
-}
-
-if(stain == 'SG'){
-  params <- c("FSC.HLin", "SSC.HLin", "BLU.V.HLin", "GRN.B.HLin")
-}
+params <- gsub("-", ".", params)
 
 pdf(paste0(output, '.som_model_training_plots.pdf'),
     width = 5,
@@ -404,9 +418,11 @@ plot.clusters('kmeans', 'SSC.HLin', 'RED.V.HLin', som.model, som.cluster, flow.c
 plot.clusters('kmeans', 'BLU.V.HLin', 'RED.V.HLin', som.model, som.cluster, flow.col, k)
 plot.clusters('kmeans', 'YEL.B.HLin', 'RED.V.HLin', som.model, som.cluster, flow.col, k)
 plot.clusters('kmeans', 'RED.B.HLin', 'RED.V.HLin', som.model, som.cluster, flow.col, k)
+plot.clusters('kmeans', 'BLU.V.HLin', 'RED.V.HLin', som.model, som.cluster, flow.col, k)
 
 plot.clusters('kmeans', 'FSC.HLin', 'GRN.B.HLin', som.model, som.cluster, flow.col, k)
 plot.clusters('kmeans', 'FSC.HLin', 'SSC.HLin', som.model, som.cluster, flow.col, k)
+plot.clusters('kmeans', 'BLU.V.HLin', 'GRN.B.HLin', som.model, som.cluster, flow.col, k)
 
 dev.off()
 
