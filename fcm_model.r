@@ -3,8 +3,8 @@ setwd("~/bowman_lab/sandbox")
 #### general parameters ####
 
 stain = 'SG' # indicate AF or SG
-output <- 'SCCOOS_SG'                   # identifier for output files
-data.path <- './'                     # make sure this ends with "/"
+output <- '20250206_SCCOOS_SG'                   # identifier for output files
+data.path <- 'SEO_FCM_vol1/'                     # make sure this ends with "/"
 f.list <- list.files(path = data.path,
                      pattern = '*fcs',
                      ignore.case = F)      # list of fcs files to analyze
@@ -127,8 +127,19 @@ for(fcs in c(f.list)){
     
     ## If analysis name has the stain in it, proceed.
     
-    if(grepl(stain, f.name)){
-      print(f.name)
+    if(grepl(stain, f.name, ignore.case = T)){
+      
+      start.time <- strptime(fcm@description$`$BTIM`, format = '%H:%M:%S')
+      end.time <- strptime(fcm@description$`$ETIM`, format = '%H:%M:%S')
+      flow.rate <- as.numeric(fcm@description$`GTI$FLOWRATECAL`)
+      elapsed.time <- as.numeric(difftime(end.time, start.time, units = 'sec'))
+      
+      ## It isn't clear why it's necessasry to multiply by a factor of 2 here, but checks out against
+      ## values in instrument settings
+      
+      volume.sampled <- flow.rate * elapsed.time * 2
+      
+      print(paste(fcs, i, f.name, volume.sampled))
       
       ## Convert data to dataframe.
       
@@ -202,6 +213,8 @@ for(fcs in c(f.list)){
       if(f.name %in% training.samples){
         training.events<- rbind(training.events, fcm[,colnames(training.events)])
       }
+      
+      fcm$vol_sampled_ul <- volume.sampled
       
       write.csv(fcm, paste0(f.name, '.qc.csv'), quote = F)
     }

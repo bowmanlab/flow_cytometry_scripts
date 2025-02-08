@@ -2,9 +2,10 @@ setwd("~/bowman_lab/bowman_lab_github/flow_cytometry_scripts")
 
 #### parameters ####
 
-f.list <- list.files(path = '.', pattern = '.qc.csv', ignore.case = T)
-output <- 'test.sg'
-input <- 'test_SG.som.Rdata'
+data.path <- 'SEO_FCM_vol1/'                          # make sure this ends with "/"
+output <- paste0(data.path, '20250206_SCCOOS_SG')     # identifier for output files
+f.list <- list.files(path = data.path, pattern = '.qc.csv', ignore.case = T)
+input <- paste0(data.path, '20250206_SCCOOS_SG.20250207_083138.som.Rdata')
 label <- 'sg'
 paramx <- 'SSC.HLin' # SSC best indicator for size, pg. 422 "In Living Color"?
 paramy <- 'GRN.B.HLin'
@@ -21,8 +22,13 @@ library(plotrix)
 
 load(input)
 
-cluster.tally <- matrix(nrow = length(f.list), ncol = k + 2)
-colnames(cluster.tally) <- c(1:k, 'beads', 'correction_factor_applied')
+cluster.tally <- matrix(nrow = length(f.list), ncol = k * 2 + 3)
+colnames(cluster.tally) <- c(paste0(1:k, '_counted'),
+                             'beads_counted',
+                             'correction_factor_applied',
+                             paste0(1:k, '_ml'),
+                             'vol_sampled_ul')
+
 row.names(cluster.tally) <- f.list
 flow.col <- oce.colorsFreesurface(k)
 
@@ -31,7 +37,7 @@ flow.col <- oce.colorsFreesurface(k)
 paramx <- 'SSC.HLin'
 paramy <- 'GRN.B.HLin'
 label <- 'sg'
-sample <- f.list[1]
+sample <- paste0(data.path, f.list[1])
 sample <- 'NC1.qc.csv'
 som.model <- som.model
 cluster.tally.df <- cluster.tally
@@ -40,7 +46,8 @@ cluster.vector <- som.cluster
 ## Classify events from all samples, making a single compiled pdf
 ## showing size and layout of clusters for each sample.
 
-classify.fcm <- function(sample,
+classify.fcm <- function(data.path,
+                         sample,
                          som.model,
                          cluster.vector,
                          paramx,
@@ -52,11 +59,13 @@ classify.fcm <- function(sample,
                          FSC.beads.llimit,
                          FL5.beads.llimit){
   
+  sample <- paste0(data.path, sample)
   print(sample)
   
   params <- colnames(som.model$data[[1]])
   
   sample.df <- read.csv(sample, row.names = 1, header = T)
+  sample.vol <- sample.df[1,'vol_sampled_ul']
   sample.mat <- as.matrix(sample.df[,params])
   sample.mat <- log10(sample.mat)
   
@@ -71,7 +80,7 @@ classify.fcm <- function(sample,
   
   sample.df[sample.beads, paste0('cluster.', label)] <- 0
   
-  out <- vector(length = k + 2)
+  out <- vector(length = k * 2 + 3)
   
   ## regular plot
   
@@ -111,8 +120,16 @@ classify.fcm <- function(sample,
   beads.counted <- length(sample.beads)
   count.cf <- beads.added / beads.counted
   out[k + 1] <- beads.counted
-  out <- out * count.cf
   out[k + 2] <- count.cf
+  out[(k + 3):(k + 2 + k)] <- out[1:k] * count.cf
+  out[k * 2 + 3] <- sample.vol
+  
+  ## positions in output vector above are thus:
+  ## raw clusters (1:k)
+  ## beads counted
+  ## correction factor
+  ## corrected clusters
+  ## sample volume
   
   write.csv(sample.df, sample, quote = F)
   return(out)
@@ -121,7 +138,8 @@ classify.fcm <- function(sample,
 pdf(paste0(output, '.clusters.pdf'))
 
 for(sample in f.list){
-  cluster.tally[sample,] <- classify.fcm(sample,
+  cluster.tally[sample,] <- classify.fcm(data.path,
+                                         sample,
                                          som.model,
                                          som.cluster,
                                          paramx,
